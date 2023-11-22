@@ -5,7 +5,7 @@ def find_overlap(img_1, img_2):
     overlap_area_height = img_2.height*0.75
 
     # Set the number of pixels to compare for overlap (x, y)
-    overlap_threshold = (500, 500)
+    overlap_threshold = (min(img_1.width, img_2.width), 500)
 
     # Get the bottom strip of pixels from the first image
     bottom_strip = img_1.crop((0, img_1.height*0.5, img_1.width, img_1.height))
@@ -21,8 +21,8 @@ def find_overlap(img_1, img_2):
             if pixel_1 != pixel_2:
                 continue
             flag = False
-            for x in range(0, overlap_threshold[0], 10):
-                for y in range(0, overlap_threshold[1], 5):
+            for x in range(0, overlap_threshold[0], 15):
+                for y in range(0, overlap_threshold[1], 15):
                     pixel_3 = bottom_strip.getpixel((x, y+y_bot))
                     pixel_4 = top_strip.getpixel((x, y+y_top))
                     if pixel_3 != pixel_4:
