@@ -2,6 +2,21 @@ from datetime import datetime
 from PIL import Image
 from PIL.ExifTags import TAGS
 
+"""
+def get_readable_exif_data(image_path):
+    try:
+        with Image.open(image_path) as img:
+            exif_data = img._getexif()
+            if exif_data is not None:
+                # Convert the raw EXIF data to a more readable format
+                exif_data = {TAGS[key]: exif_data[key] for key in exif_data.keys() if key in TAGS and TAGS[key] != "MakerNote"}
+                return exif_data
+            else:
+                print("No EXIF data found.")
+    except Exception as e:
+        print(f"Error: {e}")
+"""
+
 def find_overlap(img1, img2):
     # Determines the height of the compared are from both pictures
     overlap_area_height = img2.height*0.75
@@ -71,21 +86,6 @@ def get_average_datetime(datetime1, datetime2):
     avg_datetime_str = midpoint.strftime("%Y:%m:%d %H:%M:%S")
 
     return avg_datetime_str
-
-"""
-def get_readable_exif_data(image_path):
-    try:
-        with Image.open(image_path) as img:
-            exif_data = img._getexif()
-            if exif_data is not None:
-                # Convert the raw EXIF data to a more readable format
-                exif_data = {TAGS[key]: exif_data[key] for key in exif_data.keys() if key in TAGS and TAGS[key] != "MakerNote"}
-                return exif_data
-            else:
-                print("No EXIF data found.")
-    except Exception as e:
-        print(f"Error: {e}")
-"""
 
 def get_image_timestamp(exif_data):
     if 36867 in exif_data:
@@ -175,7 +175,7 @@ if __name__ == "__main__":
     output_path = "new_img.png"
 
     create_new_image(image1_path, image2_path, output_path)
-    
+
     # print(Image.open(output_path)._getexif())
     # print(Image.open(output_path).info.get("exif", "b"))
     # print(Image.open(image1_path)._getexif())
