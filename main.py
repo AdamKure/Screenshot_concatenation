@@ -1,8 +1,16 @@
 from datetime import datetime
 from PIL import Image
 from PIL.ExifTags import TAGS
+# from PIL.PngImagePlugin import PngInfo
 
-"""
+def print_readable_exif_data(image_path):
+    print(f"Exif for image: {image_path}")
+    exif_data = get_readable_exif_data(image_path)
+    if exif_data:
+        for key in exif_data.keys():
+            print(f"{key}: {exif_data[key]}")
+    print()
+
 def get_readable_exif_data(image_path):
     try:
         with Image.open(image_path) as img:
@@ -13,9 +21,10 @@ def get_readable_exif_data(image_path):
                 return exif_data
             else:
                 print("No EXIF data found.")
+                return None
     except Exception as e:
         print(f"Error: {e}")
-"""
+        return None
 
 def find_overlap(img1, img2):
     # Determines the height of the compared are from both pictures
@@ -71,7 +80,7 @@ def concatenate_screenshots(img1, img2):
 
     return new_img
 
-def get_average_datetime(datetime1, datetime2):
+def get_average_datetime(datetime1, datetime2, img_name = False):
     # Convert strings to datetime objects
     dt1 = datetime.strptime(datetime1, "%Y:%m:%d %H:%M:%S")
     dt2 = datetime.strptime(datetime2, "%Y:%m:%d %H:%M:%S")
@@ -83,7 +92,10 @@ def get_average_datetime(datetime1, datetime2):
     midpoint = dt1 + time_difference / 2
 
     # Format the result as a string
-    avg_datetime_str = midpoint.strftime("%Y:%m:%d %H:%M:%S")
+    if img_name:
+        avg_datetime_str = midpoint.strftime("%Y-%m-%d-%H%M%S")
+    else:
+        avg_datetime_str = midpoint.strftime("%Y:%m:%d %H:%M:%S")
 
     return avg_datetime_str
 
@@ -143,21 +155,22 @@ def create_new_image(image1_path, image2_path, output_path):
         datetime2 = img2._getexif()[36867]
 
         # Copy exif from image 1
-        new_exif = img1._getexif()
+        new_exif = img1.getexif()
 
         # Calculate the average date and time
         if datetime1 and datetime2:
             avg_datetime = get_average_datetime(datetime1, datetime2)
             # new_exif[36867] = avg_datetime
+            print(avg_datetime)
 
         # Change exif data
         new_exif = update_timestamp(new_exif, avg_datetime)
         # print(new_exif)
 
         # Save the result with the averaged metadata, so far JPEG and TIFF, NO PNG
-        # new_img.save(output_path, exif=exif_bytes)
+        new_img.save(output_path, exif=new_exif)
         print("Finished")
-    except Exception as e:
+    except AttributeError as e:
         new_img.save(output_path)
         print(f"Error changing exif: {e}")
     finally:
@@ -170,13 +183,20 @@ if __name__ == "__main__":
     # image1_path = "signal-2023-11-20-131643-3.PNG"
     # image2_path = "signal-2023-11-20-131643-2.PNG"
 
+    # image1_path = "IMG_20191101_181721.jpg"
+    # image2_path = "IMG_20191101_181721.jpg"
+
     image1_path = "IMG_6659.PNG"
     image2_path = "IMG_6660.PNG"
     output_path = "new_img.png"
 
     create_new_image(image1_path, image2_path, output_path)
 
+    # print(Image.open(image1_path)._getexif())
+    # print(Image.open(image1_path).getexif())
+    # print(Image.open(image1_path).info["exif"])
     # print(Image.open(output_path)._getexif())
     # print(Image.open(output_path).info.get("exif", "b"))
-    # print(Image.open(image1_path)._getexif())
-    # print(Image.open(image1_path).info.get("exif", "b"))
+
+    # print_readable_exif_data(image1_path)
+    print_readable_exif_data(output_path)
