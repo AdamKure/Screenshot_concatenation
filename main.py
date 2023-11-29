@@ -1,4 +1,7 @@
-from datetime import datetime
+import configparser
+import os
+import time
+from datetime import datetime, timedelta
 from PIL import Image
 from PIL.ExifTags import TAGS
 # from PIL.PngImagePlugin import PngInfo
@@ -93,7 +96,7 @@ def get_average_datetime(datetime1, datetime2, img_name = False):
 
     # Format the result as a string
     if img_name:
-        avg_datetime_str = midpoint.strftime("%Y-%m-%d-%H%M%S")
+        avg_datetime_str = midpoint.strftime("%Y:%m:%d %H:%M:%S")
     else:
         avg_datetime_str = midpoint.strftime("%Y:%m:%d %H:%M:%S")
 
@@ -138,7 +141,7 @@ def update_timestamp(exif_data, datetime):
 
     return exif_data
 
-def create_new_image(image1_path, image2_path, output_path):
+def create_new_image(image1_path, image2_path, output_folder=None):
     # Open images from a given path
     image1 = Image.open(image1_path)
     image2 = Image.open(image2_path)
@@ -168,35 +171,110 @@ def create_new_image(image1_path, image2_path, output_path):
         # print(new_exif)
 
         # Save the result with the averaged metadata, so far JPEG and TIFF, NO PNG
-        new_img.save(output_path, exif=new_exif)
+        # new_img.save(output_path, exif=new_exif)
         print("Finished")
     except AttributeError as e:
-        new_img.save(output_path)
-        print(f"Error changing exif: {e}")
-    finally:
-        new_img.show()
+        # new_img.save(output_path)
+        print(f"Error handling exif: {e}")
+    # finally:
+    #     new_img.show()
+
+def display_files_in_folder(folder_path):
+    # Check if the folder exists
+    if not os.path.exists(folder_path):
+        print(f"The folder '{folder_path}' does not exist.")
+        return
+
+    # Get the list of files in the folder
+    files = os.listdir(folder_path)
+
+    # Display the list of files
+    print(f"Files in the folder '{folder_path}':")
+    for file in files:
+        file_path = os.path.join(folder_path, file)
+        print(file_path)
+
+def list_images_in_folder(folder_path):
+    image_extensions = ['.png', '.jpg', '.jpeg']
+    image_paths = []
+    for root, dirs, files in os.walk(folder_path):
+        for file in files:
+            _, extension = os.path.splitext(file)
+            if extension.lower() in image_extensions:
+                image_paths.append(os.path.join(root, file))
+    return image_paths
+
+def within_15_minutes(timestamp1, timestamp2):
+    time_format = "%Y:%m:%d %H:%M:%S"
+    time1 = datetime.strptime(timestamp1, time_format)
+    time2 = datetime.strptime(timestamp2, time_format)
+    time_difference = abs(time1 - time2)
+    return time_difference <= timedelta(minutes=15)
+
+def create_image_pairs(image_paths):
+    image_pairs = []
+    datetimes = []
+    omit_count = 0
+
+    # Open all images in a batch
+    images = [Image.open(image_path) for image_path in image_paths]
+
+    # Extract EXIF data for all images
+    exif_data_list = [img._getexif() for img in images]
+
+    # Free memory
+    for img in images:
+        img.close()
+
+    # Process the EXIF data
+    for exif_data in exif_data_list:
+        if exif_data:
+            datetime = get_image_timestamp(exif_data)
+        else:
+            datetime = None
+        datetimes.append(datetime)
+
+    for index1, datetime1 in enumerate(datetimes):
+        if not datetime1:
+            omit_count += 1
+            continue
+        for index2, datetime2 in enumerate(datetimes):
+            if not datetime2:
+                continue
+            if index2 > index1 and within_15_minutes(datetime1, datetime2):
+                image_pairs.append((image_paths[index1], image_paths[index2]))
+                break
+    print("Found", len(image_pairs), "pairs")
+    print("Pictures omited:", omit_count)
+    return image_pairs
 
 if __name__ == "__main__":
-    # image1_path = "signal-2023-11-20-131643.PNG"
-    # image2_path = "signal-2023-11-20-131643-1.PNG"
+    start_time = time.time()
+    conf = configparser.ConfigParser()
+    conf.read('config.ini')
+    input_folder_path = conf.get("Paths", "input_folder_path")
+    output_folder_path = conf.get("Paths", "output_folder_path")
+    
+    # display_files_in_folder(rf"{input_folder_path}")
+    images_paths = list_images_in_folder(rf"{input_folder_path}")
+    # image_pairs = create_image_pairs(images_paths)
+    t1 = time.time()
+    dt1 = t1 - start_time
+    print("Paired in:", dt1)
 
-    # image1_path = "signal-2023-11-20-131643-3.PNG"
-    # image2_path = "signal-2023-11-20-131643-2.PNG"
-
-    # image1_path = "IMG_20191101_181721.jpg"
-    # image2_path = "IMG_20191101_181721.jpg"
-
-    image1_path = "IMG_6659.PNG"
-    image2_path = "IMG_6660.PNG"
-    output_path = "new_img.png"
-
-    create_new_image(image1_path, image2_path, output_path)
+    # for pair in image_pairs:
+    #     create_new_image(pair[0], pair[1])
+    t2 = time.time()
+    dt2 = t2 - t1
+    print("Concatenated in:", dt2)
+    # image1_path = "IMG_6659.PNG"
+    # image2_path = "IMG_6660.PNG"
+    # output_path = "new_img.png"
 
     # print(Image.open(image1_path)._getexif())
-    # print(Image.open(image1_path).getexif())
-    # print(Image.open(image1_path).info["exif"])
-    # print(Image.open(output_path)._getexif())
-    # print(Image.open(output_path).info.get("exif", "b"))
+    # create_new_image(image1_path, image2_path, output_path)
+    # print_readable_exif_data(output_path)
 
-    # print_readable_exif_data(image1_path)
-    print_readable_exif_data(output_path)
+    end_time = time.time()
+    run_time = end_time - start_time
+    print("Completed in:", run_time)
