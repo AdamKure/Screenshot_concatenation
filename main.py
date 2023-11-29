@@ -6,27 +6,22 @@ from PIL import Image
 from PIL.ExifTags import TAGS
 # from PIL.PngImagePlugin import PngInfo
 
-def print_readable_exif_data(image_path):
-    print(f"Exif for image: {image_path}")
-    exif_data = get_readable_exif_data(image_path)
+def print_readable_exif_data(image):
+    exif_data = get_readable_exif_data(image)
     if exif_data:
         for key in exif_data.keys():
             print(f"{key}: {exif_data[key]}")
-    print()
+    else:
+        print("No exif data found\n")
 
-def get_readable_exif_data(image_path):
-    try:
-        with Image.open(image_path) as img:
-            exif_data = img._getexif()
-            if exif_data is not None:
-                # Convert the raw EXIF data to a more readable format
-                exif_data = {TAGS[key]: exif_data[key] for key in exif_data.keys() if key in TAGS and TAGS[key] != "MakerNote"}
-                return exif_data
-            else:
-                print("No EXIF data found.")
-                return None
-    except Exception as e:
-        print(f"Error: {e}")
+def get_readable_exif_data(image):
+    exif_data = image._getexif()
+    if exif_data is not None:
+        # Convert the raw EXIF data to a more readable format
+        exif_data = {TAGS[key]: exif_data[key] for key in exif_data.keys() if key in TAGS and TAGS[key] != "MakerNote"}
+        return exif_data
+    else:
+        print("No EXIF data found.")
         return None
 
 def find_overlap(img1, img2):
@@ -51,7 +46,7 @@ def find_overlap(img1, img2):
                 continue
             flag = False
             for x in range(0, overlap_threshold[0], 25):
-                for y in range(0, overlap_threshold[1], 10):
+                for y in range(0, overlap_threshold[1], 25):
                     pixel3 = bottom_strip.getpixel((x, y+y_bot))
                     pixel4 = top_strip.getpixel((x, y+y_top))
                     if pixel3 != pixel4:
@@ -63,7 +58,7 @@ def find_overlap(img1, img2):
                 return (bottom_strip.height-y_bot, y_top)  # Return the y-coordinate where the images start to differ
     return (0, 0)  # If no difference is found, return 0
 
-def concatenate_screenshots(img1, img2):    
+def stich_screenshots(img1, img2):    
     # Find the overlapping region
     overlap = find_overlap(img1, img2)
     overlap_total = overlap[0] + overlap[1]
@@ -83,7 +78,7 @@ def concatenate_screenshots(img1, img2):
 
     return new_img
 
-def get_average_datetime(datetime1, datetime2, img_name = False):
+def get_average_datetime(datetime1, datetime2):
     # Convert strings to datetime objects
     dt1 = datetime.strptime(datetime1, "%Y:%m:%d %H:%M:%S")
     dt2 = datetime.strptime(datetime2, "%Y:%m:%d %H:%M:%S")
@@ -95,11 +90,7 @@ def get_average_datetime(datetime1, datetime2, img_name = False):
     midpoint = dt1 + time_difference / 2
 
     # Format the result as a string
-    if img_name:
-        avg_datetime_str = midpoint.strftime("%Y:%m:%d %H:%M:%S")
-    else:
-        avg_datetime_str = midpoint.strftime("%Y:%m:%d %H:%M:%S")
-
+    avg_datetime_str = midpoint.strftime('%Y-%m-%d-%H%M%S')
     return avg_datetime_str
 
 def get_image_timestamp(exif_data):
@@ -109,8 +100,8 @@ def get_image_timestamp(exif_data):
         return None
 
 def check_if_reversed_time(datetime1, datetime2):
+    # Check if they need to be switched
     if datetime1 is not None and datetime2 is not None:
-        # Check if they need to be switched
         if datetime1 > datetime2:
             return True
         else:
@@ -141,43 +132,43 @@ def update_timestamp(exif_data, datetime):
 
     return exif_data
 
-def create_new_image(image1_path, image2_path, output_folder=None):
-    # Open images from a given path
-    image1 = Image.open(image1_path)
-    image2 = Image.open(image2_path)
-
+def create_new_image(image1, image2, output_folder_path=None, custom_name=None, image_file_format=".png", spam=False):
     # Get images in correct order
     img1, img2 = sort_by_time(image1, image2)
 
     # Get concatenated image
-    new_img = concatenate_screenshots(img1, img2)
+    new_img = stich_screenshots(img1, img2)
 
-    try:
-        # Get the date and time from the metadata
-        datetime1 = img1._getexif()[36867]
-        datetime2 = img2._getexif()[36867]
+    # Get the date and time from the metadata
+    datetime1 = img1._getexif()[36867]
+    datetime2 = img2._getexif()[36867]
 
-        # Copy exif from image 1
-        new_exif = img1.getexif()
+    # Calculate the average date and time
+    if datetime1 and datetime2:
+        avg_datetime = get_average_datetime(datetime1, datetime2)
 
-        # Calculate the average date and time
-        if datetime1 and datetime2:
-            avg_datetime = get_average_datetime(datetime1, datetime2)
-            # new_exif[36867] = avg_datetime
-            print(avg_datetime)
+    # Create name for new image
+    if avg_datetime and not custom_name:
+        filename = f"{avg_datetime}{image_file_format}"
+    elif custom_name:
+        filename = f"{custom_name}{image_file_format}"
+    else:
+        filename = f"{datetime.now().strftime('%Y-%m-%d-%H%M%S')}{image_file_format}"
 
-        # Change exif data
-        new_exif = update_timestamp(new_exif, avg_datetime)
-        # print(new_exif)
+    # Add folder path
+    if output_folder_path:
+        full_path = os.path.join(output_folder_path, filename)
+    else:
+        full_path = filename
 
-        # Save the result with the averaged metadata, so far JPEG and TIFF, NO PNG
-        # new_img.save(output_path, exif=new_exif)
-        print("Finished")
-    except AttributeError as e:
-        # new_img.save(output_path)
-        print(f"Error handling exif: {e}")
-    # finally:
-    #     new_img.show()
+    # Save the result
+    new_img.save(full_path)
+    img1.close()
+    img2.close()
+    new_img.close()
+
+    if spam:
+        print(f"Image {filename} created")
 
 def display_files_in_folder(folder_path):
     # Check if the folder exists
@@ -194,15 +185,15 @@ def display_files_in_folder(folder_path):
         file_path = os.path.join(folder_path, file)
         print(file_path)
 
-def list_images_in_folder(folder_path):
+def filter_images_in_folder(folder_path):
     image_extensions = ['.png', '.jpg', '.jpeg']
-    image_paths = []
-    for root, dirs, files in os.walk(folder_path):
-        for file in files:
-            _, extension = os.path.splitext(file)
-            if extension.lower() in image_extensions:
-                image_paths.append(os.path.join(root, file))
-    return image_paths
+    image_path_list = []
+    files = os.listdir(folder_path)
+    for file in files:
+        _, extension = os.path.splitext(file)
+        if extension.lower() in image_extensions:
+            image_path_list.append(os.path.join(folder_path, file)) 
+    return image_path_list
 
 def within_15_minutes(timestamp1, timestamp2):
     time_format = "%Y:%m:%d %H:%M:%S"
@@ -211,22 +202,15 @@ def within_15_minutes(timestamp1, timestamp2):
     time_difference = abs(time1 - time2)
     return time_difference <= timedelta(minutes=15)
 
-def create_image_pairs(image_paths):
-    image_pairs = []
-    datetimes = []
-    omit_count = 0
-
+def create_image_pairs(image_paths, spam=False):
     # Open all images in a batch
     images = [Image.open(image_path) for image_path in image_paths]
 
     # Extract EXIF data for all images
     exif_data_list = [img._getexif() for img in images]
 
-    # Free memory
-    for img in images:
-        img.close()
-
     # Process the EXIF data
+    datetimes = []
     for exif_data in exif_data_list:
         if exif_data:
             datetime = get_image_timestamp(exif_data)
@@ -234,46 +218,59 @@ def create_image_pairs(image_paths):
             datetime = None
         datetimes.append(datetime)
 
-    for index1, datetime1 in enumerate(datetimes):
-        if not datetime1:
-            omit_count += 1
+    image_pair_list = []
+    omited_list = []
+    paired = []
+    for index1, datetime1 in enumerate(datetimes[:-1]):
+        if (not datetime1):
+            omited_list.append(image_paths[index1])
             continue
-        for index2, datetime2 in enumerate(datetimes):
-            if not datetime2:
+        if (index1 in paired):
+            continue
+        for index2, datetime2 in enumerate(datetimes[index1+1:], start=index1+1):
+            if (not datetime2) or (index2 in paired):
                 continue
             if index2 > index1 and within_15_minutes(datetime1, datetime2):
-                image_pairs.append((image_paths[index1], image_paths[index2]))
+                image_pair_list.append((images[index1], images[index2]))
+                paired.extend([index1, index2])
                 break
-    print("Found", len(image_pairs), "pairs")
-    print("Pictures omited:", omit_count)
-    return image_pairs
+        else:
+            omited_list.append(image_paths[index1])
 
-if __name__ == "__main__":
-    start_time = time.time()
+    if spam:
+        print("Found", len(image_pair_list), "pairs")
+        print("Pictures omited:", len(omited_list))
+
+    # [image.close() for image in images]
+    return omited_list, image_pair_list
+
+def list_to_txt(input_list, output_file):
+    with open(output_file, 'w') as file:
+        for item in input_list:
+            file.write(str(item) + '\n')
+
+def main():
     conf = configparser.ConfigParser()
     conf.read('config.ini')
     input_folder_path = conf.get("Paths", "input_folder_path")
     output_folder_path = conf.get("Paths", "output_folder_path")
-    
+    print(f"Loading files from {input_folder_path}")
+
     # display_files_in_folder(rf"{input_folder_path}")
-    images_paths = list_images_in_folder(rf"{input_folder_path}")
-    # image_pairs = create_image_pairs(images_paths)
-    t1 = time.time()
-    dt1 = t1 - start_time
-    print("Paired in:", dt1)
+    images_path_list = filter_images_in_folder(rf"{input_folder_path}")
+    print(f"Found {len(images_path_list)} images")
+    omited, image_pair_list = create_image_pairs(images_path_list, spam=True)
+    list_to_txt(omited, f"{output_folder_path}\Omited_files.txt")
 
-    # for pair in image_pairs:
-    #     create_new_image(pair[0], pair[1])
-    t2 = time.time()
-    dt2 = t2 - t1
-    print("Concatenated in:", dt2)
-    # image1_path = "IMG_6659.PNG"
-    # image2_path = "IMG_6660.PNG"
-    # output_path = "new_img.png"
+    print("Stiching images:")
+    for pair in image_pair_list:
+        create_new_image(pair[0], pair[1], output_folder_path=output_folder_path, spam=True)
 
-    # print(Image.open(image1_path)._getexif())
-    # create_new_image(image1_path, image2_path, output_path)
-    # print_readable_exif_data(output_path)
+
+if __name__ == "__main__":
+    start_time = time.time()
+
+    main()
 
     end_time = time.time()
     run_time = end_time - start_time
